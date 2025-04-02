@@ -3,14 +3,14 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
-    "dev": "node generate-temp-files.mjs && astro dev",
+    "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro",
-    "generate-i18n": "node generate-temp-files.mjs"
+    "astro": "astro"
   },
   "dependencies": {
-    "astro": "^5.5.5"
+    "astro": "^5.5.5",
+    "fs-extra": "^11.3.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.14"
