@@ -24,4 +24,5 @@ pnpm-debug.log*
 .idea/
 
 .temp-astro
-.src_temp
+
+src_temp
