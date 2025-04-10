@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, rmSync, cpSync, readdirSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, cpSync, readdirSync, statSync } from 'fs';
 import { join, pathToFileURL } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import path from 'path';
 
-export default function i18nMiddleware({ supportedLocales = ['en', 'es', 'fr'], defaultLocale = 'en' } = {}) {
+export default function i18nMiddleware({ supportedLocales = ['en', 'es', 'fr'], defaultLocale = 'en', includeDefaultLocale = false } = {}) {
   return {
     name: 'astro-i18n-middleware',
     hooks: {
@@ -25,25 +26,12 @@ export default function i18nMiddleware({ supportedLocales = ['en', 'es', 'fr'], 
         }
 
         // Generate language subfolders in tempSrc
-        for (const locale of supportedLocales) {
-          const localeDir = join(tempSrc, locale);
-          if (!existsSync(localeDir)) {
-            mkdirSync(localeDir, { recursive: true });
-          }
-        }
+        generateLanguageFolders(pagesDir, supportedLocales, defaultLocale, includeDefaultLocale);
 
         // Convert tempSrc to a file URL
         const tempSrcURL = pathToFileURL(tempSrc);
         config.srcDir = new URL(tempSrcURL.href + '/'); // Force Astro to recognize it
         config.pages = new URL('pages/', config.srcDir); // Explicitly set pages dir
-
-        // Debugging Logs
-        console.log('Original src:', originalSrc);
-        console.log('Temporary src:', tempSrc);
-        console.log('Pages dir exists:', existsSync(pagesDir));
-        console.log('Pages dir contents:', readdirSync(pagesDir));
-        console.log('Final config.srcDir:', config.srcDir);
-        console.log('Final config.pages:', config.pages);
       },
       'astro:build:done': async () => {
         // Cleanup temp source folder after build
@@ -54,4 +42,32 @@ export default function i18nMiddleware({ supportedLocales = ['en', 'es', 'fr'], 
       }
     }
   };
+}
+
+
+function generateLanguageFolders(pagesDir, locales, defaultLocale, includeDefault) {
+  const pages = readdirSync(pagesDir);
+
+  for (const locale of locales) {
+    // Skip default locale if not including it
+    if (!includeDefault && locale === defaultLocale) continue;
+
+    const localePath = path.join(pagesDir, locale);
+    if (!existsSync(localePath)) {
+      mkdirSync(localePath, { recursive: true });
+    }
+
+    // Copy content from root pages/ into pages/<locale>/
+    for (const file of pages) {
+      const originalPath = path.join(pagesDir, file);
+      const targetPath = path.join(localePath, file);
+
+      if (file === locale) continue; // Skip already existing locale folders
+      if (statSync(originalPath).isDirectory()) {
+        cpSync(originalPath, targetPath, { recursive: true });
+      } else {
+        cpSync(originalPath, targetPath);
+      }
+    }
+  }
 }
