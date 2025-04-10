@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync, cpSync, readdirSync, statSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, cpSync, readdirSync, readFileSync, writeFileSync, statSync } from 'fs';
 import { join, pathToFileURL } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
@@ -49,7 +49,6 @@ function generateLanguageFolders(pagesDir, locales, defaultLocale, includeDefaul
   const pages = readdirSync(pagesDir);
 
   for (const locale of locales) {
-    // Skip default locale if not including it
     if (!includeDefault && locale === defaultLocale) continue;
 
     const localePath = path.join(pagesDir, locale);
@@ -57,17 +56,61 @@ function generateLanguageFolders(pagesDir, locales, defaultLocale, includeDefaul
       mkdirSync(localePath, { recursive: true });
     }
 
-    // Copy content from root pages/ into pages/<locale>/
     for (const file of pages) {
       const originalPath = path.join(pagesDir, file);
       const targetPath = path.join(localePath, file);
 
-      if (file === locale) continue; // Skip already existing locale folders
+      if (file === locale) continue;
+
       if (statSync(originalPath).isDirectory()) {
-        cpSync(originalPath, targetPath, { recursive: true });
+        copyDirectoryWithImportRewrite(originalPath, targetPath);
       } else {
-        cpSync(originalPath, targetPath);
+        copyFileWithImportRewrite(originalPath, targetPath);
       }
+    }
+  }
+}
+
+
+function copyFileWithImportRewrite(srcFile, destFile) {
+  const ext = path.extname(srcFile);
+  const isCodeFile = ['.astro', '.ts', '.tsx', '.js'].includes(ext);
+
+  if (isCodeFile) {
+    let content = readFileSync(srcFile, 'utf-8');
+
+    // Rewrite relative imports (./ or ../) but skip alias imports
+    content = content.replace(
+      /import\s+(.*?)\s+from\s+['"]((\.{1,2}\/).*?)['"]/g,
+      (match, imports, importPath) => {
+        // Skip rewriting if already deeply relative (e.g., '../../')
+        if (importPath.startsWith('@/')) return match;
+        const rewritten = `../${importPath}`;
+        return `import ${imports} from '${rewritten}'`;
+      }
+    );
+
+    writeFileSync(destFile, content);
+  } else {
+    cpSync(srcFile, destFile);
+  }
+}
+
+
+function copyDirectoryWithImportRewrite(srcDir, destDir) {
+  if (!existsSync(destDir)) {
+    mkdirSync(destDir, { recursive: true });
+  }
+
+  const entries = readdirSync(srcDir);
+  for (const entry of entries) {
+    const srcPath = path.join(srcDir, entry);
+    const destPath = path.join(destDir, entry);
+
+    if (statSync(srcPath).isDirectory()) {
+      copyDirectoryWithImportRewrite(srcPath, destPath);
+    } else {
+      copyFileWithImportRewrite(srcPath, destPath);
     }
   }
 }
